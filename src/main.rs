@@ -1,9 +1,10 @@
 use gtk4::{
-    glib, Application, ApplicationWindow, Box, Image, Label, ListBox, ListBoxRow, MenuButton,
-    Orientation, Scale,
+    glib, Application, ApplicationWindow, Box, Button, Image, Label, ListBox, ListBoxRow,
+    MenuButton, Orientation, PasswordEntry, Scale,
 };
 use gtk4::{prelude::*, PositionType, ToggleButton};
-use std::process::Command;
+use std::io::{self, Write};
+use std::process::{Command, Output};
 
 fn main() -> glib::ExitCode {
     let app = Application::new(Some("com.example.ControlNix"), Default::default());
@@ -60,8 +61,6 @@ fn build_ui(app: &Application) {
 
 // Functions for system controls as shown above...
 fn set_volume(volume: u8) {
-    use std::io::{self, Write};
-
     let output = Command::new("sh")
         .arg("-c")
         .arg(format!(
@@ -118,21 +117,55 @@ fn toggle_wifi(enable: bool) {
         .output();
 }
 
+fn connect_wifi(wifi_name: &String, password: Option<String>) -> bool {
+    println!("Inside connect_wif()");
+    let output: Output;
+    if let Some(pass) = password {
+        println!("{pass}");
+        output = Command::new("sh")
+            .arg("-c")
+            .arg(format!(
+                "nmcli dev wifi connect '{}' password '{}'",
+                wifi_name, pass
+            ))
+            .output()
+            .expect("connect_wifi: failed to execute command");
+    } else {
+        println!("no pass");
+        output = Command::new("sh")
+            .arg("-c")
+            .arg(format!("nmcli dev wifi connect {}", wifi_name))
+            .output()
+            .expect("connect_wifi: failed to execute command");
+    }
+    io::stderr().write_all(&output.stderr).unwrap();
+    io::stdout().write_all(&output.stdout).unwrap();
+    output.status.success()
+}
+
 fn toggle_bluetooth(enable: bool) {
     let state = if enable { "power on" } else { "power off" };
-    let _ = Command::new("bluetoothctl").arg(state).output();
+    let output = Command::new("bluetoothctl")
+        .arg(state)
+        .output()
+        .expect("toggle_bluetooth: failed to execute command");
+
+    io::stderr().write_all(&output.stderr).unwrap();
+    io::stdout().write_all(&output.stdout).unwrap();
 }
 
 fn set_brightness(level: u8) {
-    let _ = Command::new("brightnessctl")
+    let output = Command::new("brightnessctl")
         .arg("set")
         .arg(format!("{}%", level))
-        .output();
+        .output()
+        .expect("toggle_bluetooth: failed to execute command");
+
+    io::stderr().write_all(&output.stderr).unwrap();
+    io::stdout().write_all(&output.stdout).unwrap();
 }
 
 fn get_volume() -> String {
-    use std::io::{self, Write};
-
     let output = Command::new("sh")
         .arg("-c")
         .arg("pamixer --get-volume")
@@ -147,14 +180,15 @@ fn get_volume() -> String {
     output_str
 }
 
-fn mute_volume() {
-    use std::io::{self, Write};
+fn toggle_audio() {
     let output = Command::new("sh")
         .arg("-c")
         .arg("pamixer -t; kill \"$(pidof sleep)\"")
         .output()
-        .expect("get_volume: Failed to execute command");
+        .expect("toggle_audio: Failed to execute command");
+
     io::stderr().write_all(&output.stderr).unwrap();
+    io::stdout().write_all(&output.stdout).unwrap();
 }
 
 fn create_toggle_button_and_dropdown(button_label: String, icon: String) -> gtk4::Box {
@@ -197,8 +231,11 @@ fn create_toggle_button_and_dropdown(button_label: String, icon: String) -> gtk4
         .direction(gtk4::ArrowType::Right)
         .halign(gtk4::Align::Start)
         .build();
-    
-    let listbox = ListBox::builder().show_separators(true).build();
+
+    let listbox = ListBox::builder()
+        .selection_mode(gtk4::SelectionMode::Single)
+        .show_separators(true)
+        .build();
     let listbox_clone = listbox.clone();
     let popover = gtk4::Popover::builder().build();
     popover.connect_realize(move |_| {
@@ -211,7 +248,16 @@ fn create_toggle_button_and_dropdown(button_label: String, icon: String) -> gtk4
         }
         for network in networks {
             let row = ListBoxRow::builder().margin_top(5).margin_bottom(5).build();
+            /*let vbox_out = Box::new(Orientation::Vertical, 2);
+            let vbox_in = Box::new(Orientation::Vertical, 2);
+            let pass_entry = PasswordEntry::builder().show_peek_icon(true).build();
+            let ok_button = Button::with_label("Connect");*/
             let label = Label::builder().label(network).build();
+            /*vbox_out.append(&label);
+            vbox_in.append(&pass_entry);
+            vbox_in.append(&ok_button);
+            vbox_in.set_visible(false);
+            vbox_out.append(&vbox_in);*/
             row.set_child(Some(&label));
             listbox_clone.append(&row);
         }
@@ -221,15 +267,52 @@ fn create_toggle_button_and_dropdown(button_label: String, icon: String) -> gtk4
     let popover_clone = popover.clone();
     let network_name_label_clone = network_name_label.clone();
     listbox.connect_row_activated(move |_, lbr| {
+        let mut selected_network: String = String::new();
+
         if let Some(child) = lbr.child() {
             if let Ok(label) = child.downcast::<Label>() {
-                toggle_button_clone.set_active(false);
-                // Successfully downcasted, we can use label as a Label now
-                network_name_label_clone.set_text(&label.text());
-                button_icon_clone.set_icon_name(Some(&icon_name_clone));
-                vbox1.show();
-                popover_clone.popdown();
+                selected_network = label.text().to_string();
             }
+        }
+
+        if selected_network.is_empty() {
+            return;
+        }
+        println!("{}", selected_network);
+        // if the string is not empty, then try to connect to the network
+        if connect_wifi(&selected_network, None) {
+            network_name_label_clone.set_text(&selected_network);
+        } else {
+            println!("Here");
+            let vbox_out = Box::new(Orientation::Vertical, 2);
+            let vbox_in = Box::new(Orientation::Vertical, 2);
+            let hbox = Box::new(Orientation::Horizontal, 2);
+            let pass_entry = PasswordEntry::builder().show_peek_icon(true).build();
+            let connect_button = Button::with_label("Connect");
+            let forget_button = Button::with_label("Forget");
+            hbox.append(&forget_button);
+            hbox.append(&connect_button);
+
+            let pass_entry_clone = pass_entry.clone();
+            let vbox_in_clone = vbox_in.clone();
+            let selected_network_clone = selected_network.clone();
+
+            connect_button.connect_clicked(move |_| {
+                let password = pass_entry_clone.text();
+                if connect_wifi(&selected_network_clone, Some(password.to_string())) {
+                    vbox_in_clone.hide();
+                    //popover_clone.popdown();
+                } else {
+                    pass_entry_clone.set_text("");
+                    pass_entry_clone.grab_focus();
+                }
+            });
+            let new_network_label = Label::new(Some(&selected_network));
+            vbox_out.append(&new_network_label);
+            vbox_in.append(&pass_entry);
+            vbox_in.append(&hbox);
+            vbox_out.append(&vbox_in);
+            lbr.set_child(Some(&vbox_out));
         }
     });
 
@@ -280,7 +363,7 @@ fn create_slider(icon_name: String, current_value: &String) -> gtk4::Box {
             } else {
                 toggle_button_clone.set_icon_name("audio-volume-high-symbolic");
             }
-            mute_volume();
+            toggle_audio();
         });
         hbox.append(&toggle_button);
     } else {
