@@ -205,8 +205,6 @@ fn create_toggle_button_and_dropdown(button_label: String, icon: String) -> gtk4
     hbox1.append(&vbox1);
 
     let vbox1_clone = vbox1.clone();
-    let button_icon_clone = button_icon.clone();
-    let icon_name_clone = icon.clone();
     let button_label_clone = button_label.clone();
 
     // WiFi Toggle and Dropdown Split Button
@@ -254,10 +252,11 @@ fn create_toggle_button_and_dropdown(button_label: String, icon: String) -> gtk4
         }
     });
 
-    let toggle_button_clone = toggle_button.clone();
     let popover_clone = popover.clone();
     let network_name_label_clone = network_name_label.clone();
+
     listbox.connect_row_activated(move |_, lbr| {
+        
         let mut selected_network: String = String::new();
         if let Some(child) = lbr.child() {
             if let Ok(l) = child.downcast::<Label>() {
@@ -282,23 +281,41 @@ fn create_toggle_button_and_dropdown(button_label: String, icon: String) -> gtk4
         let selected_network_clone = selected_network.clone();
         let network_label_name_clone2 = network_name_label_clone.clone();
         let vbox_clone = vbox.clone();
-        let row_label_clone = row_label.clone();
+        let hbox_clone = hbox.clone();
         let popover_clone2 = popover_clone.clone();
         let pass_entry_clone = pass_entry.clone();
-        connect_button.connect_clicked(move |_| {
+
+        connect_button.connect_clicked(move |b| {
             if connect_wifi(&selected_network_clone, None) {
+                // If connection succeeds without a password, set label and exit.
+                hbox_clone.remove(b);
+                popover_clone2.popdown();
+                network_label_name_clone2.set_text(&selected_network_clone);
+                return;
+            }
+        
+            // If connection without password fails, show password entry.
+            pass_entry_clone.set_visible(true);
+        
+            // Check if password is provided.
+            let password = pass_entry_clone.text();
+            if password.is_empty() {
+                pass_entry_clone.grab_focus();
+                return;
+            }
+        
+            // Try connecting with the provided password.
+            if connect_wifi(&selected_network_clone, Some(password.to_string())) {
+                vbox_clone.remove(&pass_entry_clone);
+                hbox_clone.remove(b);
+                popover_clone2.popdown();
                 network_label_name_clone2.set_text(&selected_network_clone);
             } else {
-                pass_entry_clone.set_visible(true);
-                if !pass_entry_clone.text().is_empty() {
-                    if connect_wifi(&selected_network_clone, Some(pass_entry_clone.text().to_string())) {
-                        popover_clone2.popdown();
-                    } else {
-                        pass_entry_clone.grab_focus();
-                    }
-                }
+                // Focus on the password field if connection with password fails.
+                pass_entry_clone.grab_focus();
             }
         });
+
         hbox.append(&forget_button);
         hbox.append(&connect_button);
 
