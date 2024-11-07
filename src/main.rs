@@ -248,16 +248,7 @@ fn create_toggle_button_and_dropdown(button_label: String, icon: String) -> gtk4
         }
         for network in networks {
             let row = ListBoxRow::builder().margin_top(5).margin_bottom(5).build();
-            /*let vbox_out = Box::new(Orientation::Vertical, 2);
-            let vbox_in = Box::new(Orientation::Vertical, 2);
-            let pass_entry = PasswordEntry::builder().show_peek_icon(true).build();
-            let ok_button = Button::with_label("Connect");*/
             let label = Label::builder().label(network).build();
-            /*vbox_out.append(&label);
-            vbox_in.append(&pass_entry);
-            vbox_in.append(&ok_button);
-            vbox_in.set_visible(false);
-            vbox_out.append(&vbox_in);*/
             row.set_child(Some(&label));
             listbox_clone.append(&row);
         }
@@ -268,10 +259,10 @@ fn create_toggle_button_and_dropdown(button_label: String, icon: String) -> gtk4
     let network_name_label_clone = network_name_label.clone();
     listbox.connect_row_activated(move |_, lbr| {
         let mut selected_network: String = String::new();
-
         if let Some(child) = lbr.child() {
-            if let Ok(label) = child.downcast::<Label>() {
-                selected_network = label.text().to_string();
+            if let Ok(l) = child.downcast::<Label>() {
+                println!("Here 1");
+                selected_network = l.text().to_string();
             }
         }
 
@@ -279,41 +270,42 @@ fn create_toggle_button_and_dropdown(button_label: String, icon: String) -> gtk4
             return;
         }
         println!("{}", selected_network);
-        // if the string is not empty, then try to connect to the network
-        if connect_wifi(&selected_network, None) {
-            network_name_label_clone.set_text(&selected_network);
-        } else {
-            println!("Here");
-            let vbox_out = Box::new(Orientation::Vertical, 2);
-            let vbox_in = Box::new(Orientation::Vertical, 2);
-            let hbox = Box::new(Orientation::Horizontal, 2);
-            let pass_entry = PasswordEntry::builder().show_peek_icon(true).build();
-            let connect_button = Button::with_label("Connect");
-            let forget_button = Button::with_label("Forget");
-            hbox.append(&forget_button);
-            hbox.append(&connect_button);
 
-            let pass_entry_clone = pass_entry.clone();
-            let vbox_in_clone = vbox_in.clone();
-            let selected_network_clone = selected_network.clone();
+        let row_label = Label::new(Some(&selected_network));
+        let vbox = Box::new(Orientation::Vertical, 2);
+        let hbox = Box::new(Orientation::Horizontal, 2);
+        let connect_button = Button::with_label("Connect");
+        let forget_button = Button::with_label("Forget");
+        let pass_entry = PasswordEntry::builder().show_peek_icon(true).build();
+        pass_entry.set_visible(false);
 
-            connect_button.connect_clicked(move |_| {
-                let password = pass_entry_clone.text();
-                if connect_wifi(&selected_network_clone, Some(password.to_string())) {
-                    vbox_in_clone.hide();
-                    //popover_clone.popdown();
-                } else {
-                    pass_entry_clone.set_text("");
-                    pass_entry_clone.grab_focus();
+        let selected_network_clone = selected_network.clone();
+        let network_label_name_clone2 = network_name_label_clone.clone();
+        let vbox_clone = vbox.clone();
+        let row_label_clone = row_label.clone();
+        let popover_clone2 = popover_clone.clone();
+        let pass_entry_clone = pass_entry.clone();
+        connect_button.connect_clicked(move |_| {
+            if connect_wifi(&selected_network_clone, None) {
+                network_label_name_clone2.set_text(&selected_network_clone);
+            } else {
+                pass_entry_clone.set_visible(true);
+                if !pass_entry_clone.text().is_empty() {
+                    if connect_wifi(&selected_network_clone, Some(pass_entry_clone.text().to_string())) {
+                        popover_clone2.popdown();
+                    } else {
+                        pass_entry_clone.grab_focus();
+                    }
                 }
-            });
-            let new_network_label = Label::new(Some(&selected_network));
-            vbox_out.append(&new_network_label);
-            vbox_in.append(&pass_entry);
-            vbox_in.append(&hbox);
-            vbox_out.append(&vbox_in);
-            lbr.set_child(Some(&vbox_out));
-        }
+            }
+        });
+        hbox.append(&forget_button);
+        hbox.append(&connect_button);
+
+        vbox.append(&row_label);
+        vbox.append(&pass_entry);
+        vbox.append(&hbox);
+        lbr.set_child(Some(&vbox));
     });
 
     popover.set_child(Some(&listbox));
