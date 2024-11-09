@@ -72,7 +72,13 @@ fn create_toggle_button_and_dropdown(
     let vbox1 = Box::new(Orientation::Vertical, 5);
     let button_icon = Image::from_icon_name(&icon);
     let label = Label::new(Some(&button_label));
-    let network_name_label = Label::new(Some("Not connected"));
+
+    let network_name_label: Label;
+    if &button_label == "Wifi" {
+        network_name_label = Label::new(Some(&get_wifi_networks_iw()[0]));
+    } else {
+        network_name_label = Label::new(Some("Not connected"));
+    }
 
     vbox1.append(&label);
     vbox1.append(&network_name_label);
@@ -97,8 +103,8 @@ fn create_toggle_button_and_dropdown(
             button_icon.set_icon_name(Some(&icon));
             vbox1_clone.show();
         }
-        toggle_wifi(true);
-        enable_bluetooth(true);
+        toggle_wifi(!button.is_active());
+        enable_bluetooth(!button.is_active());
     });
 
     let toggle_menu_button = MenuButton::builder()
@@ -110,13 +116,17 @@ fn create_toggle_button_and_dropdown(
         .selection_mode(gtk4::SelectionMode::Single)
         .show_separators(true)
         .build();
-    let listbox_clone = listbox.clone();
+
     let popover = gtk4::Popover::builder().build();
+
+    let listbox_clone = listbox.clone();
+    let toggle_button_c = toggle_button.clone();
+
     popover.connect_realize(move |_| {
+        toggle_button_c.set_active(false);
         let networks: Vec<String>;
         if &button_label_clone == "Wifi" {
-            networks = get_wifi_networks();
-            //networks = vec!["Wifi1".into(), "Wifi2".into()];
+            networks = get_wifi_networks_iw();
         } else {
             networks = get_bluetooth_networks();
         }
@@ -354,6 +364,49 @@ fn get_wifi_networks() -> Vec<String> {
     wifi_networks
 }
 
+fn get_wifi_networks_iw() -> Vec<String> {
+    let output = Command::new("sh")
+        .arg("-c")
+        .arg("iw dev | grep Interface | awk '{print $2}'")
+        .output()
+        .expect("get_wifi_networks_iw: failed to execute command");
+    if !output.status.success() {
+        return Vec::new();
+    }
+
+    io::stdout().write_all(&output.stdout).unwrap();
+    io::stderr().write_all(&output.stderr).unwrap();
+
+    let output_str = String::from_utf8_lossy(&output.stdout);
+
+    let mut wifi_networks: Vec<String> = Vec::new();
+    for line in output_str.lines() {
+        let output = Command::new("sh")
+            .arg("-c")
+            .arg(format!(
+                "iw dev {} info | grep ssid | awk '{{$1=\"\"; print $0}}' | xargs",
+                line
+            ))
+            .output()
+            .expect("failed to execute command");
+
+        io::stdout().write_all(&output.stdout).unwrap();
+        io::stderr().write_all(&output.stderr).unwrap();
+
+        if output.status.success() {
+            let networks_str = String::from_utf8_lossy(&output.stdout).trim().to_string();
+            if networks_str.is_empty() {
+                continue;
+            }
+            for network in networks_str.lines() {
+                println!("network: {}", network);
+                wifi_networks.push(network.trim().to_string());
+            }
+        }
+    }
+    wifi_networks
+}
+
 fn toggle_wifi(enable: bool) {
     let state = if enable { "on" } else { "off" };
     let _ = Command::new("sh")
@@ -379,7 +432,7 @@ fn connect_wifi(wifi_name: &String, password: Option<String>) -> bool {
         println!("no pass");
         output = Command::new("sh")
             .arg("-c")
-            .arg(format!("nmcli dev wifi connect {}", wifi_name))
+            .arg(format!("nmcli dev wifi connect '{}'", wifi_name))
             .output()
             .expect("connect_wifi: failed to execute command");
     }
