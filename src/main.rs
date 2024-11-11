@@ -41,7 +41,7 @@ fn build_ui(app: &Application) {
     vbox.append(&create_toggle_button_and_dropdown(
         "Wifi".to_string(),
         "network-wireless-symbolic".into(),
-        true,
+        is_wifi_enabled(),
     ));
     vbox.append(&create_toggle_button_and_dropdown(
         "Bluetooth".to_string(),
@@ -73,16 +73,27 @@ fn create_toggle_button_and_dropdown(
     let button_icon = Image::from_icon_name(&icon);
     let label = Label::new(Some(&button_label));
 
-    let network_name_label: Label;
-    if &button_label == "Wifi" {
-        network_name_label = Label::new(Some(&get_wifi_networks_iw()[0]));
+    hbox1.append(&button_icon);
+
+    let network_name_label: Label = Label::new(Some("Not connected"));
+    if enabled && button_label == "Wifi" {
+        network_name_label.set_text(&get_wifi_networks_iw()[0]);
+    } else if enabled && button_label == "Bluetooth" {
+        network_name_label.set_text("Not connected");
+    } else if !enabled && button_label == "Wifi" {
+        button_icon.set_icon_name(Some("network-wireless-offline-symbolic"));
     } else {
-        network_name_label = Label::new(Some("Not connected"));
+        button_icon.set_icon_name(Some("bluetooth-disabled-symbolic"));
     }
 
     vbox1.append(&label);
     vbox1.append(&network_name_label);
-    hbox1.append(&button_icon);
+
+    if enabled {
+        vbox1.show();
+    } else {
+        vbox1.hide();
+    }
     hbox1.append(&vbox1);
 
     let vbox1_clone = vbox1.clone();
@@ -126,7 +137,7 @@ fn create_toggle_button_and_dropdown(
         toggle_button_c.set_active(false);
         let networks: Vec<String>;
         if &button_label_clone == "Wifi" {
-            networks = get_wifi_networks_iw();
+            networks = get_wifi_networks();
         } else {
             networks = get_bluetooth_networks();
         }
@@ -326,6 +337,20 @@ fn create_slider(icon_name: String, current_value: &String) -> gtk4::Box {
     hbox.append(&slider);
 
     hbox
+}
+
+fn is_wifi_enabled() -> bool {
+    let output = Command::new("sh")
+        .arg("-c")
+        .arg("nmcli radio wifi")
+        .output()
+        .expect("is_wifi_enabled: failed to execute command");
+
+    if output.status.success() {
+        let output_str = String::from_utf8_lossy(&output.stdout.trim_ascii());
+        return output_str == "enabled";
+    }
+    false
 }
 
 fn get_wifi_networks() -> Vec<String> {
