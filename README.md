@@ -40,6 +40,7 @@ sudo dnf install NetworkManager iw bluez pulseaudio pamixer xorg-xbacklight
 ```
 
 # Clone the repository
+```bash
 git clone https://github.com/himalpoudel334/ControlNix.git
 cd ControlNix
 
