@@ -23,8 +23,7 @@ ControlNix relies on the following utilities:
 
 To install and use ControlNix, ensure the dependencies listed above are installed on your system.
 
-# Install the dependencies 
-On Debian/Ubuntu-based systems:
+### Install the dependencies 
 ```bash
 sudo apt install network-manager iw bluetooth bluez pulseaudio pamixer xbacklight
 ```
@@ -39,7 +38,7 @@ On Fedora:
 sudo dnf install NetworkManager iw bluez pulseaudio pamixer xorg-xbacklight
 ```
 
-# Clone the repository
+### Clone the repository
 ```bash
 git clone https://github.com/himalpoudel334/ControlNix.git
 cd ControlNix
