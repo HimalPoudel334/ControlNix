@@ -75,11 +75,11 @@ fn create_toggle_button_and_dropdown(
 
     hbox1.append(&button_icon);
 
-    let network_name_label: Label = Label::new(Some("Not connected"));
+    let network_name_label: Label = Label::new(None);
     if enabled && button_label == "Wifi" {
         network_name_label.set_text(&get_wifi_networks_iw()[0]);
     } else if enabled && button_label == "Bluetooth" {
-        network_name_label.set_text("Not connected");
+        network_name_label.set_text("Not Connected");
     } else if !enabled && button_label == "Wifi" {
         button_icon.set_icon_name(Some("network-wireless-offline-symbolic"));
     } else {
@@ -99,6 +99,7 @@ fn create_toggle_button_and_dropdown(
     let vbox1_clone = vbox1.clone();
     let button_label_clone = button_label.clone();
     let button_label_clone2 = button_label.clone();
+    let network_name_label2 = network_name_label.clone();
 
     // WiFi Toggle and Dropdown Split Button
     let toggle_button = ToggleButton::builder().active(!enabled).build();
@@ -111,6 +112,11 @@ fn create_toggle_button_and_dropdown(
             }
             vbox1_clone.hide();
         } else {
+            if &button_label == "Wifi" {
+                toggle_wifi(true);
+                std::thread::sleep(std::time::Duration::from_secs(2));
+                network_name_label2.set_text(&get_wifi_networks_iw()[0]);
+            }
             button_icon.set_icon_name(Some(&icon));
             vbox1_clone.show();
         }
@@ -355,6 +361,7 @@ fn is_wifi_enabled() -> bool {
 
 fn get_wifi_networks() -> Vec<String> {
     println!("Called");
+    toggle_wifi(true);
     // Run the `nmcli` command with additional shell utilities
     let output = Command::new("sh")
         .arg("-c")
@@ -409,7 +416,7 @@ fn get_wifi_networks_iw() -> Vec<String> {
         let output = Command::new("sh")
             .arg("-c")
             .arg(format!(
-                "iw dev {} info | grep ssid | awk '{{$1=\"\"; print $0}}' | xargs",
+                "iw dev {} link | grep -i ssid | awk '{{$1=\"\"; print $0}}' | xargs",
                 line
             ))
             .output()
@@ -428,6 +435,10 @@ fn get_wifi_networks_iw() -> Vec<String> {
                 wifi_networks.push(network.trim().to_string());
             }
         }
+    }
+
+    if wifi_networks.is_empty() {
+        wifi_networks.insert(0, "Not Connected".into());
     }
     wifi_networks
 }
@@ -535,7 +546,7 @@ fn get_bluetooth_networks() -> Vec<String> {
     let stdout = String::from_utf8_lossy(&output.stdout);
 
     // Collect each line as a "Device" entry in format "Address - Name"
-    stdout
+    let mut networks = stdout
         .lines()
         .filter_map(|line| {
             let parts: Vec<&str> = line.split_whitespace().collect();
@@ -547,7 +558,13 @@ fn get_bluetooth_networks() -> Vec<String> {
                 None
             }
         })
-        .collect::<Vec<String>>()
+        .collect::<Vec<String>>();
+
+    if networks.is_empty() {
+        networks.insert(0, "Not Connected".into());
+    }
+
+    networks
 }
 
 fn connect_bluetooth(mac: &String) -> bool {
