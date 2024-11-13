@@ -24,6 +24,9 @@ ControlNix relies on the following utilities:
 To install and use ControlNix, ensure the dependencies listed above are installed on your system.
 
 ```bash
+# Install the dependencies 
+network-manager iw bluetooth bluez pulseaudio pamixer xbacklight
+
 # Clone the repository
 git clone https://github.com/himalpoudel334/ControlNix.git
 cd ControlNix
@@ -33,4 +36,8 @@ cargo build --release
 
 # Run ControlNix
 ./target/release/ControlNix
+
+# You can copy the compiled binary to your path and add a keybinding to open it with your window manager.
+# For example
+cp ./target/release/ControlNix ~/.local/bin/
 
