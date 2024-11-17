@@ -632,7 +632,7 @@ fn set_volume(volume: u8) {
     let output = Command::new("sh")
         .arg("-c")
         .arg(format!(
-            "pamixer -u; pamixer --allow-boost --set-volume {}; kill \"$(pidof sleep)\"",
+            "pamixer -u; pamixer --set-volume {}; kill \"$(pidof sleep)\"",
             volume
         ))
         .output()
